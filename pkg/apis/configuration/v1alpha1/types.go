@@ -134,8 +134,8 @@ type TransportServerStatus struct {
 
 // ExternalEndpoint defines the IP and ports used to connect to this resource.
 type ExternalEndpoint struct {
-	IP    string `json:"ip"`
-	Ports string `json:"ports"`
+	IP   string `json:"ip"`
+	Port string `json:"port"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

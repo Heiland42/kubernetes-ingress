@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	conf_v1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1"
 	conf_v1alpha1 "github.com/nginxinc/kubernetes-ingress/pkg/apis/configuration/v1alpha1"
 	fake_v1alpha1 "github.com/nginxinc/kubernetes-ingress/pkg/client/clientset/versioned/fake"
@@ -36,31 +37,20 @@ func TestUpdateTransportServerStatus(t *testing.T) {
 				*ts,
 			}})
 
-	tsLister := storeToTransportServerLister{}
-	tsLister.Store, _ = cache.NewInformer(
-		cache.NewListWatchFromClient(
-			fakeClient.K8sV1alpha1().RESTClient(),
-			"transportservers",
-			"nginx-ingress",
-			fields.Everything(),
-		),
-		&conf_v1alpha1.TransportServer{},
-		2,
-		nil,
-	)
+	tsLister := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
 
-	err := tsLister.Store.Add(ts)
+	err := tsLister.Add(ts)
 	if err != nil {
 		t.Errorf("Error adding TransportServer to the transportserver lister: %v", err)
 	}
 	su := statusUpdater{
-		transportServerLister: &tsLister,
+		transportServerLister: tsLister,
 		confClient:            fakeClient,
 		keyFunc:               cache.DeletionHandlingMetaNamespaceKeyFunc,
-		externalEndpoints: []conf_v1.ExternalEndpoint{
+		externalListenerEndpoints: []conf_v1alpha1.ExternalEndpoint{
 			{
-				IP:    "123.123.123.123",
-				Ports: "1234",
+				IP:   "123.123.123.123",
+				Port: "1234",
 			},
 		},
 	}
@@ -71,20 +61,15 @@ func TestUpdateTransportServerStatus(t *testing.T) {
 	}
 	updatedTs, _ := fakeClient.K8sV1alpha1().TransportServers(ts.Namespace).Get(context.TODO(), ts.Name, meta_v1.GetOptions{})
 
-	if updatedTs.Status.State != "after status" {
-		t.Errorf("expected: %v actual: %v", "after status", updatedTs.Status.State)
+	expectedStatus := conf_v1alpha1.TransportServerStatus{
+		State:             "after status",
+		Reason:            "after reason",
+		Message:           "after message",
+		ExternalEndpoints: []conf_v1alpha1.ExternalEndpoint{{IP: "123.123.123.123", Port: "1234"}},
 	}
-	if updatedTs.Status.Message != "after message" {
-		t.Errorf("expected: %v actual: %v", "after message", updatedTs.Status.Message)
-	}
-	if updatedTs.Status.Reason != "after reason" {
-		t.Errorf("expected: %v actual: %v", "after reason", updatedTs.Status.Reason)
-	}
-	if updatedTs.Status.ExternalEndpoints[0].Ports != "1234" {
-		t.Errorf("expected: %v actual: %v", "1234", updatedTs.Status.ExternalEndpoints[0].Ports)
-	}
-	if updatedTs.Status.ExternalEndpoints[0].IP != "123.123.123.123" {
-		t.Errorf("expected: %v actual: %v", "123.123.123.123", updatedTs.Status.ExternalEndpoints[0].IP)
+
+	if diff := cmp.Diff(expectedStatus, updatedTs.Status); diff != "" {
+		t.Errorf("Unexpected status (-want +got):\n%s", diff)
 	}
 }
 
@@ -107,8 +92,7 @@ func TestUpdateTransportServerStatusIgnoreNoChange(t *testing.T) {
 				*ts,
 			}})
 
-	tsLister := storeToTransportServerLister{}
-	tsLister.Store, _ = cache.NewInformer(
+	tsLister, _ := cache.NewInformer(
 		cache.NewListWatchFromClient(
 			fakeClient.K8sV1alpha1().RESTClient(),
 			"transportservers",
@@ -120,12 +104,12 @@ func TestUpdateTransportServerStatusIgnoreNoChange(t *testing.T) {
 		nil,
 	)
 
-	err := tsLister.Store.Add(ts)
+	err := tsLister.Add(ts)
 	if err != nil {
 		t.Errorf("Error adding TransportServer to the transportserver lister: %v", err)
 	}
 	su := statusUpdater{
-		transportServerLister: &tsLister,
+		transportServerLister: tsLister,
 		confClient:            fakeClient,
 		keyFunc:               cache.DeletionHandlingMetaNamespaceKeyFunc,
 	}
@@ -164,8 +148,7 @@ func TestUpdateTransportServerStatusMissingTransportServer(t *testing.T) {
 		&conf_v1alpha1.TransportServerList{
 			Items: []conf_v1alpha1.TransportServer{}})
 
-	tsLister := storeToTransportServerLister{}
-	tsLister.Store, _ = cache.NewInformer(
+	tsLister, _ := cache.NewInformer(
 		cache.NewListWatchFromClient(
 			fakeClient.K8sV1alpha1().RESTClient(),
 			"transportservers",
@@ -178,7 +161,7 @@ func TestUpdateTransportServerStatusMissingTransportServer(t *testing.T) {
 	)
 
 	su := statusUpdater{
-		transportServerLister: &tsLister,
+		transportServerLister: tsLister,
 		confClient:            fakeClient,
 		keyFunc:               cache.DeletionHandlingMetaNamespaceKeyFunc,
 		externalEndpoints: []conf_v1.ExternalEndpoint{
@@ -196,7 +179,7 @@ func TestUpdateTransportServerStatusMissingTransportServer(t *testing.T) {
 
 	updatedTs, _ := fakeClient.K8sV1alpha1().TransportServers(ts.Namespace).Get(context.TODO(), ts.Name, meta_v1.GetOptions{})
 	if updatedTs != nil {
-		t.Errorf("expected TransportServer Store would be empty as provided TransportServer was not found")
+		t.Errorf("expected TransportServer Store would be empty as provided TransportServer was not found. Unexpected updated TransportServer: %v", updatedTs)
 	}
 }
 

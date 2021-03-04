@@ -870,24 +870,11 @@ func (lbc *LoadBalancerController) syncTransportServer(task task) {
 	} else {
 		glog.V(2).Infof("Adding or Updating TransportServer: %v\n", key)
 		ts := obj.(*conf_v1alpha1.TransportServer)
-		changes, problems = lbc.addOrUpdateTransportServer(key, ts)
+		changes, problems = lbc.configuration.AddOrUpdateTransportServer(ts)
 	}
 
 	lbc.processChanges(changes)
 	lbc.processProblems(problems)
-}
-
-func (lbc *LoadBalancerController) addOrUpdateTransportServer(key string, ts *conf_v1alpha1.TransportServer) ([]ResourceChange, []ConfigurationProblem) {
-	validationErr := lbc.transportServerValidator.ValidateTransportServer(ts)
-	if validationErr != nil {
-		return lbc.configuration.DeleteTransportServer(key)
-	}
-
-	if !lbc.configurator.CheckIfListenerExists(&ts.Spec.Listener) {
-		return lbc.configuration.DeleteTransportServer(key)
-	}
-
-	return lbc.configuration.AddOrUpdateTransportServer(ts)
 }
 
 func (lbc *LoadBalancerController) syncGlobalConfiguration(task task) {
