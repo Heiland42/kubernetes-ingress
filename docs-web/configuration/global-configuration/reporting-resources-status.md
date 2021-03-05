@@ -159,8 +159,8 @@ A TransportServer resource includes the status field with information about the 
 You can see the status in the output of the `kubectl get transportserver` command as shown below:
 ```
 $ kubectl get transportserver
-  NAME      STATE   REASON           IP    PORTS   AGE
-  dns-tcp   Valid   AddedOrUpdated                 47m
+  NAME      STATE   REASON           AGE
+  dns-tcp   Valid   AddedOrUpdated   47m
 ```
 In order to see additional addresses or extra information about the `Status` of the resource, use the following command:
 ```

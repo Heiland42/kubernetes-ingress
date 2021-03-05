@@ -27,24 +27,23 @@ import (
 // API. For external information, it primarily reports the IP or host of the LoadBalancer Service exposing the
 // Ingress Controller, or an external IP specified in the ConfigMap.
 type statusUpdater struct {
-	client                    kubernetes.Interface
-	namespace                 string
-	externalServiceName       string
-	externalStatusAddress     string
-	externalServiceAddresses  []string
-	externalServicePorts      string
-	bigIPAddress              string
-	bigIPPorts                string
-	externalEndpoints         []v1.ExternalEndpoint
-	externalListenerEndpoints []conf_v1alpha1.ExternalEndpoint
-	status                    []api_v1.LoadBalancerIngress
-	keyFunc                   func(obj interface{}) (string, error)
-	ingressLister             *storeToIngressLister
-	virtualServerLister       cache.Store
-	virtualServerRouteLister  cache.Store
-	transportServerLister     cache.Store
-	policyLister              cache.Store
-	confClient                k8s_nginx.Interface
+	client                   kubernetes.Interface
+	namespace                string
+	externalServiceName      string
+	externalStatusAddress    string
+	externalServiceAddresses []string
+	externalServicePorts     string
+	bigIPAddress             string
+	bigIPPorts               string
+	externalEndpoints        []v1.ExternalEndpoint
+	status                   []api_v1.LoadBalancerIngress
+	keyFunc                  func(obj interface{}) (string, error)
+	ingressLister            *storeToIngressLister
+	virtualServerLister      cache.Store
+	virtualServerRouteLister cache.Store
+	transportServerLister    cache.Store
+	policyLister             cache.Store
+	confClient               k8s_nginx.Interface
 }
 
 func (su *statusUpdater) UpdateExternalEndpointsForResources(resource []Resource) error {
@@ -91,11 +90,6 @@ func (su *statusUpdater) UpdateExternalEndpointsForResource(r Resource) error {
 		}
 
 		if failed {
-			return fmt.Errorf("not all Resources updated")
-		}
-	case *TransportServerConfiguration:
-		err := su.updateTransportServerExternalEndpoints(impl.TransportServer)
-		if err != nil {
 			return fmt.Errorf("not all Resources updated")
 		}
 	}
@@ -290,7 +284,6 @@ func (su *statusUpdater) SaveStatusFromExternalStatus(externalStatusAddress stri
 	ips = append(ips, su.externalStatusAddress)
 	su.saveStatus(ips)
 	su.externalEndpoints = su.generateExternalEndpointsFromStatus(su.status)
-	su.externalListenerEndpoints = su.generateExternalListenerEndpointsFromStatus(su.status)
 }
 
 // ClearStatusFromExternalService clears the saved status from the External Service
@@ -311,7 +304,6 @@ func (su *statusUpdater) SaveStatusFromExternalService(svc *api_v1.Service) {
 	}
 	su.saveStatus(ips)
 	su.externalEndpoints = su.generateExternalEndpointsFromStatus(su.status)
-	su.externalListenerEndpoints = su.generateExternalListenerEndpointsFromStatus(su.status)
 }
 
 func (su *statusUpdater) SaveStatusFromIngressLink(ip string) {
@@ -326,7 +318,6 @@ func (su *statusUpdater) SaveStatusFromIngressLink(ip string) {
 	ips := []string{su.bigIPAddress}
 	su.saveStatus(ips)
 	su.externalEndpoints = su.generateExternalEndpointsFromStatus(su.status)
-	su.externalListenerEndpoints = su.generateExternalListenerEndpointsFromStatus(su.status)
 }
 
 func (su *statusUpdater) ClearStatusFromIngressLink() {
@@ -341,7 +332,6 @@ func (su *statusUpdater) ClearStatusFromIngressLink() {
 	ips := []string{}
 	su.saveStatus(ips)
 	su.externalEndpoints = su.generateExternalEndpointsFromStatus(su.status)
-	su.externalListenerEndpoints = su.generateExternalListenerEndpointsFromStatus(su.status)
 }
 
 func (su *statusUpdater) retryUpdateTransportServerStatus(tsCopy *conf_v1alpha1.TransportServer) error {
@@ -425,7 +415,6 @@ func (su *statusUpdater) UpdateTransportServerStatus(ts *conf_v1alpha1.Transport
 	tsCopy.Status.State = state
 	tsCopy.Status.Reason = reason
 	tsCopy.Status.Message = message
-	tsCopy.Status.ExternalEndpoints = su.externalListenerEndpoints
 
 	_, err = su.confClient.K8sV1alpha1().TransportServers(tsCopy.Namespace).UpdateStatus(context.TODO(), tsCopy, metav1.UpdateOptions{})
 	if err != nil {
@@ -569,28 +558,6 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatus(vsr *conf_v1.VirtualServ
 	return err
 }
 
-func (su *statusUpdater) updateTransportServerExternalEndpoints(ts *conf_v1alpha1.TransportServer) error {
-	tsLatest, exists, err := su.transportServerLister.Get(ts)
-	if err != nil {
-		glog.V(3).Infof("error getting TransportServer from Store: %v", err)
-		return err
-	}
-	if !exists {
-		glog.V(3).Infof("TransportServer doesn't exist in Store")
-		return nil
-	}
-
-	tsCopy := tsLatest.(*conf_v1alpha1.TransportServer).DeepCopy()
-	tsCopy.Status.ExternalEndpoints = su.externalListenerEndpoints
-
-	_, err = su.confClient.K8sV1alpha1().TransportServers(ts.Namespace).UpdateStatus(context.TODO(), tsCopy, metav1.UpdateOptions{})
-	if err != nil {
-		glog.V(3).Infof("error setting TransportServer %v/%v status, retrying: %v", tsCopy.Namespace, tsCopy.Name, err)
-		return su.retryUpdateTransportServerStatus(tsCopy)
-	}
-	return err
-}
-
 func (su *statusUpdater) updateVirtualServerExternalEndpoints(vs *conf_v1.VirtualServer) error {
 	// Get a pristine VirtualServer from the Store
 	vsLatest, exists, err := su.virtualServerLister.Get(vs)
@@ -646,21 +613,6 @@ func (su *statusUpdater) generateExternalEndpointsFromStatus(status []api_v1.Loa
 		}
 
 		endpoint := conf_v1.ExternalEndpoint{IP: lb.IP, Ports: ports}
-		externalEndpoints = append(externalEndpoints, endpoint)
-	}
-
-	return externalEndpoints
-}
-
-func (su *statusUpdater) generateExternalListenerEndpointsFromStatus(status []api_v1.LoadBalancerIngress) []conf_v1alpha1.ExternalEndpoint {
-	var externalEndpoints []conf_v1alpha1.ExternalEndpoint
-	for _, lb := range status {
-		port := su.externalServicePorts
-		if su.bigIPPorts != "" {
-			port = su.bigIPPorts
-		}
-
-		endpoint := conf_v1alpha1.ExternalEndpoint{IP: lb.IP, Port: port}
 		externalEndpoints = append(externalEndpoints, endpoint)
 	}
 

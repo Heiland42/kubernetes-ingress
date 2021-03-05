@@ -1466,7 +1466,7 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEvents(tsConfig
 		eventType = api_v1.EventTypeWarning
 		eventTitle = "AddedOrUpdatedWithWarning"
 		eventWarningMessage = fmt.Sprintf("with warning(s): %s", formatWarningMessages(tsConfig.Warnings))
-		state = conf_v1.StateInvalid
+		state = conf_v1.StateWarning
 	}
 
 	if operationErr != nil {

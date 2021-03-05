@@ -54,7 +54,7 @@ type GlobalConfigurationList struct {
 // +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`,description="Current state of the VirtualServer. If the resource has a valid status, it means it has been validated and accepted by the Ingress Controller."
 // +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.reason`
 // +kubebuilder:printcolumn:name="IP",type=string,JSONPath=`.status.externalEndpoints[*].ip`
-// +kubebuilder:printcolumn:name="Ports",type=string,JSONPath=`.status.externalEndpoints[*].ports`
+// +kubebuilder:printcolumn:name="Port",type=string,JSONPath=`.status.externalEndpoints[*].port`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // TransportServer defines the TransportServer resource.
@@ -126,16 +126,9 @@ type Action struct {
 
 // TransportServerStatus defines the status for the TransportServer resource.
 type TransportServerStatus struct {
-	State             string             `json:"state"`
-	Reason            string             `json:"reason"`
-	Message           string             `json:"message"`
-	ExternalEndpoints []ExternalEndpoint `json:"externalEndpoints,omitempty"`
-}
-
-// ExternalEndpoint defines the IP and ports used to connect to this resource.
-type ExternalEndpoint struct {
-	IP   string `json:"ip"`
-	Port string `json:"port"`
+	State   string `json:"state"`
+	Reason  string `json:"reason"`
+	Message string `json:"message"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

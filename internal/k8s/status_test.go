@@ -47,12 +47,6 @@ func TestUpdateTransportServerStatus(t *testing.T) {
 		transportServerLister: tsLister,
 		confClient:            fakeClient,
 		keyFunc:               cache.DeletionHandlingMetaNamespaceKeyFunc,
-		externalListenerEndpoints: []conf_v1alpha1.ExternalEndpoint{
-			{
-				IP:   "123.123.123.123",
-				Port: "1234",
-			},
-		},
 	}
 
 	err = su.UpdateTransportServerStatus(ts, "after status", "after reason", "after message")
@@ -62,10 +56,9 @@ func TestUpdateTransportServerStatus(t *testing.T) {
 	updatedTs, _ := fakeClient.K8sV1alpha1().TransportServers(ts.Namespace).Get(context.TODO(), ts.Name, meta_v1.GetOptions{})
 
 	expectedStatus := conf_v1alpha1.TransportServerStatus{
-		State:             "after status",
-		Reason:            "after reason",
-		Message:           "after message",
-		ExternalEndpoints: []conf_v1alpha1.ExternalEndpoint{{IP: "123.123.123.123", Port: "1234"}},
+		State:   "after status",
+		Reason:  "after reason",
+		Message: "after message",
 	}
 
 	if diff := cmp.Diff(expectedStatus, updatedTs.Status); diff != "" {
